@@ -130,8 +130,10 @@ DATABASE_SSL=true
 as tabelas `usuarios`, `dispositivos`, `leituras`, `alertas` e `comandos`.
 Como o banco é novo, crie a conta de novo no painel.
 
-> O Supabase avisa que as tabelas estão sem *RLS* (Row Level Security). Pode ignorar: o acesso é feito só
-> pelo back-end com a senha do banco, nunca direto pelo navegador.
+> **Segurança:** o Supabase publica automaticamente as tabelas numa API REST. O `schema.sql` ativa o
+> *RLS* (Row Level Security) em todas as tabelas sem nenhuma regra, o que bloqueia essa API pública. O back-end
+> continua funcionando porque conecta como dono das tabelas. No Table Editor, as tabelas **não** devem
+> aparecer com o selo vermelho *Unrestricted*.
 
 ## Etapa 4 — Notificações: bot do Telegram
 

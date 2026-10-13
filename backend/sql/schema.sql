@@ -67,3 +67,12 @@ CREATE TABLE IF NOT EXISTS comandos (
   payload        JSONB       NOT NULL,
   criado_em      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Segurança (Supabase): o Supabase expõe automaticamente as tabelas do schema "public"
+-- numa API REST pública. Ativar RLS sem nenhuma policy bloqueia todo acesso por essa API.
+-- O back-end não é afetado: ele conecta como dono das tabelas, que ignora o RLS.
+ALTER TABLE usuarios     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dispositivos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leituras     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alertas      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comandos     ENABLE ROW LEVEL SECURITY;
