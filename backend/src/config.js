@@ -18,6 +18,7 @@ const config = {
 
   histerese: Number(process.env.HISTERESE) || 0.5,
   minutosInativo: Number(process.env.MINUTOS_INATIVO) || 2,
+  toleranciaOfflineS: Number(process.env.OFFLINE_TOLERANCIA_S ?? 60),
 };
 
 if (!config.databaseUrl) {

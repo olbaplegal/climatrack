@@ -103,6 +103,7 @@ unsigned long ultimoEnvio = 0;
 float ultimaTempEnviada = NAN;
 float ultimaUmidEnviada = NAN;
 int   leiturasDescartadas = 0;
+int   picosSeguidos = 0;       // picos consecutivos: se persistir, é mudança real
 
 bool alarmeLocal = false;    // decidido na borda
 bool ledManual = false;      // comando vindo da nuvem
@@ -259,14 +260,15 @@ bool leituraValida(float t, float u) {
   if (isnan(t) || isnan(u)) return false;
   if (t < -40 || t > 80) return false;
   if (u < 0 || u > 100) return false;
-
-  // Rejeita "picos" absurdos em relação à média atual (ruído do sensor)
-  if (bufQtd >= 3) {
-    float somaT = 0;
-    for (int i = 0; i < bufQtd; i++) somaT += bufTemp[i];
-    if (fabs(t - somaT / bufQtd) > 10.0) return false;
-  }
   return true;
+}
+
+// Salto de mais de 10 °C em relação à média atual
+bool ehPico(float t) {
+  if (bufQtd < 3) return false;
+  float somaT = 0;
+  for (int i = 0; i < bufQtd; i++) somaT += bufTemp[i];
+  return fabs(t - somaT / bufQtd) > 10.0;
 }
 
 void coletarAmostra() {
@@ -275,9 +277,24 @@ void coletarAmostra() {
 
   if (!leituraValida(t, u)) {
     leiturasDescartadas++;
-    Serial.println("Leitura descartada (inválida ou ruído)");
+    Serial.println("Leitura descartada (inválida)");
     return;
   }
+
+  // Um pico isolado é ruído e é descartado. Se o salto se repetir em
+  // 3 leituras seguidas, é uma mudança real: a média recomeça do novo valor.
+  if (ehPico(t)) {
+    picosSeguidos++;
+    if (picosSeguidos < 3) {
+      leiturasDescartadas++;
+      Serial.println("Leitura descartada (pico/ruído)");
+      return;
+    }
+    Serial.println("Mudança brusca confirmada: reiniciando a média");
+    bufQtd = 0;
+    bufIndice = 0;
+  }
+  picosSeguidos = 0;
 
   bufTemp[bufIndice] = t;
   bufUmid[bufIndice] = u;
@@ -307,7 +324,7 @@ void publicarDados(float temperatura, float umidade, const char* motivo) {
   doc["amostras"] = bufQtd;
   doc["descartadas"] = leiturasDescartadas;
   doc["alarme_local"] = alarmeLocal;
-  doc["motivo"] = motivo;            // "periodico" ou "variacao"
+  doc["motivo"] = motivo;            // "periodico", "variacao" ou "alarme"
   doc["rssi"] = WiFi.RSSI();
 
   char json[320];
@@ -366,6 +383,10 @@ void loop() {
     conectarWiFi();
   }
   if (!mqttClient.connected()) {
+    // Estado < 0 = queda de conexão (-4 timeout, -3 conexão perdida, -1 desconectado)
+    Serial.print("MQTT desconectado (estado ");
+    Serial.print(mqttClient.state());
+    Serial.println(")");
     conectarMQTT();
   }
   mqttClient.loop();
@@ -384,7 +405,8 @@ void loop() {
 
     // 2) Decisão local (funciona mesmo sem nuvem)
     bool novoAlarme = (t > limiteTempMax) || (u < limiteUmidMin);
-    if (novoAlarme != alarmeLocal) {
+    bool mudouAlarme = (novoAlarme != alarmeLocal);
+    if (mudouAlarme) {
       alarmeLocal = novoAlarme;
       atualizarAtuadores();
       Serial.println(alarmeLocal ? "ALARME LOCAL ATIVADO" : "Alarme local desativado");
@@ -398,6 +420,9 @@ void loop() {
     if (agora - ultimoEnvio >= intervaloEnvio || isnan(ultimaTempEnviada)) {
       ultimoEnvio = agora;
       publicarDados(t, u, "periodico");
+    } else if (mudouAlarme) {
+      ultimoEnvio = agora;
+      publicarDados(t, u, "alarme");   // a nuvem fica sabendo da decisão local na hora
     } else if (variacao) {
       ultimoEnvio = agora;
       publicarDados(t, u, "variacao");

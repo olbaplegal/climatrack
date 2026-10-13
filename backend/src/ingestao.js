@@ -14,6 +14,8 @@ const mqtt = require('./mqtt');
 // Último estado conhecido de cada alerta: "<device>:<tipo>" -> 'disparado' | 'normalizado'
 const estadoAlertas = new Map();
 const dispositivosCarregados = new Set();
+// Alertas de offline aguardando a tolerância: deviceId -> timeout
+const offlinePendente = new Map();
 
 const REGRAS = [
   {
@@ -171,6 +173,7 @@ async function processarDados(deviceId, texto) {
   );
 
   if (disp.usuario_id) eventos.emitir(disp.usuario_id, 'leitura', rows[0]);
+  cancelarOfflinePendente(deviceId);
 
   await avaliarRegras(disp, leitura, inicioMs);
 }
@@ -191,14 +194,40 @@ async function processarStatus(deviceId, texto) {
   );
   if (disp.usuario_id) eventos.emitir(disp.usuario_id, 'status', { dispositivo_id: deviceId, status, info: payload });
 
-  // Alerta de conectividade (só na mudança de estado)
+  // Alerta de conectividade (só na mudança de estado). Quedas rápidas (reconexão de
+  // Wi-Fi/MQTT) não geram alerta: o "offline" só é confirmado após a tolerância.
   await carregarEstadoAlertas(deviceId);
   const offlineAtivo = estadoAlertas.get(`${deviceId}:offline`) === 'disparado';
-  if (status === 'offline' && !offlineAtivo) {
-    await registrarAlerta(disp, 'offline', 'disparado', null, '🔌 Dispositivo <b>OFFLINE</b> (sem conexão com o broker)', Date.now());
-  } else if (status === 'online' && offlineAtivo) {
-    await registrarAlerta(disp, 'offline', 'normalizado', null, '🔌 Dispositivo voltou a ficar <b>ONLINE</b>', Date.now());
+
+  if (status === 'online') {
+    cancelarOfflinePendente(deviceId);
+    if (offlineAtivo) {
+      await registrarAlerta(disp, 'offline', 'normalizado', null, '🔌 Dispositivo voltou a ficar <b>ONLINE</b>', Date.now());
+    }
+  } else if (!offlineAtivo && !offlinePendente.has(deviceId)) {
+    const inicioMs = Date.now();
+    offlinePendente.set(deviceId, setTimeout(() => {
+      confirmarOffline(deviceId, inicioMs).catch((err) => console.error('[regra] erro offline:', err.message));
+    }, config.toleranciaOfflineS * 1000));
+    console.log(`[regra] ${deviceId} offline; alerta em ${config.toleranciaOfflineS}s se não voltar`);
   }
+}
+
+function cancelarOfflinePendente(deviceId) {
+  const timer = offlinePendente.get(deviceId);
+  if (!timer) return;
+  clearTimeout(timer);
+  offlinePendente.delete(deviceId);
+  console.log(`[regra] ${deviceId} voltou dentro da tolerância; alerta de offline cancelado`);
+}
+
+async function confirmarOffline(deviceId, inicioMs) {
+  offlinePendente.delete(deviceId);
+  const disp = await obterOuCriarDispositivo(deviceId);
+  if (disp.status !== 'offline') return;
+  const segundos = Math.round((Date.now() - inicioMs) / 1000);
+  await registrarAlerta(disp, 'offline', 'disparado', null,
+    `🔌 Dispositivo <b>OFFLINE</b> há ${segundos} s (sem conexão com o broker)`, Date.now());
 }
 
 async function processarMensagem(deviceId, tipo, texto) {
