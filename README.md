@@ -18,6 +18,7 @@ ESP32 + DHT11 ──MQTT/TLS──► HiveMQ Cloud ──► Back-end Node.js �
 | Pasta | Conteúdo |
 |---|---|
 | `firmware/esp32_clima/` | Código do ESP32 (Arduino IDE) com processamento na borda |
+| `firmware/wokwi/` | Diagrama e configuração para rodar o mesmo firmware no simulador Wokwi |
 | `backend/src/` | Back-end Node.js: ingestão MQTT, regras/alertas, API REST, login, Telegram |
 | `backend/public/` | Painel web (login, gráficos com Chart.js, controles) |
 | `backend/sql/schema.sql` | Modelo de dados (criado automaticamente ao iniciar) |
@@ -188,6 +189,28 @@ Envie `/status` e `/led_on` ao bot para testar o caminho Telegram → nuvem → 
 ✅ **Teste**: segure o sensor com a mão (ou sopre ar quente) → a temperatura sobe no gráfico. Ajuste o
 *Temp. máxima* para 1 °C acima da temperatura atual e **Salvar e sincronizar** → ao aquecer o sensor:
 LED acende (decisão local e da nuvem), Telegram recebe o alerta.
+
+### Alternativa: ESP32 simulado no Wokwi (sem hardware)
+
+O Wokwi executa o **mesmo firmware**; só muda o `secrets.h`. Os arquivos prontos estão em `firmware/wokwi/`.
+
+1. No HiveMQ, crie mais uma credencial: `wokwi` / senha própria (*Publish and Subscribe*).
+   Projetos salvos no Wokwi gratuito são **públicos**; com uma credencial separada, basta apagá-la se o link vazar.
+2. Abra https://wokwi.com/projects/new/esp32.
+3. Aba **sketch.ino**: apague o conteúdo e cole o `firmware/esp32_clima/esp32_clima.ino` inteiro.
+4. Aba **diagram.json**: apague e cole `firmware/wokwi/diagram.json` (ESP32 + DHT22 no GPIO 4 + LED no GPIO 2).
+5. Seta ao lado das abas → **New file…** → `secrets.h` → cole `firmware/wokwi/secrets.wokwi.h` e preencha a URL do
+   cluster e a senha da credencial `wokwi`.
+6. Aba **Library Manager** → **+** → adicione as 4 bibliotecas de `firmware/wokwi/libraries.txt`.
+7. Clique em ▶ (Start). A primeira compilação demora. O Serial Monitor deve mostrar
+   `Wi-Fi conectado` → `Conectando ao HiveMQ... conectado!` → `Dados publicados`.
+8. No painel, adicione o dispositivo **`esp32-wokwi`**.
+9. **Para testar alertas**: durante a simulação, clique no sensor DHT22 e arraste a temperatura acima do limite.
+   O LED vermelho acende (pela decisão local e pelo comando da nuvem), e o alerta chega no Telegram.
+
+> Se algum fio aparecer solto no diagrama, ligue-o arrastando: DHT22 VCC→3V3, GND→GND, SDA→GPIO 4;
+> GPIO 2 → resistor → LED (perna longa, A) e LED (C) → GND.
+> A simulação pode rodar mais devagar que o tempo real e a conexão TLS leva alguns segundos. É normal.
 
 ## Etapa 6 — Roteiro sugerido para a demonstração (pré-banca e banca)
 

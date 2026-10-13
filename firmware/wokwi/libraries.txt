@@ -1,0 +1,5 @@
+# Bibliotecas do projeto (Wokwi > aba "Library Manager")
+DHT sensor library
+Adafruit Unified Sensor
+PubSubClient
+ArduinoJson

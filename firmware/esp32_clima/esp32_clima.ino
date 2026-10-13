@@ -44,12 +44,20 @@ const int   MQTT_PORT     = 8883;
 const char* MQTT_USER     = SECRET_MQTT_USER;
 const char* MQTT_PASSWORD = SECRET_MQTT_PASSWORD;
 
-// Identificação do dispositivo (deve ser único)
-const char* DEVICE_ID = "esp32-01";
+// Identificação do dispositivo (deve ser único; também é o client ID no broker).
+// Pode ser sobrescrito em secrets.h com: #define CFG_DEVICE_ID "esp32-wokwi"
+#ifndef CFG_DEVICE_ID
+#define CFG_DEVICE_ID "esp32-01"
+#endif
+const char* DEVICE_ID = CFG_DEVICE_ID;
 
-// Sensor: DHT11 (azul) ou DHT22 (branco)
+// Sensor: DHT11 (azul) ou DHT22 (branco; é o que existe no Wokwi).
+// Pode ser sobrescrito em secrets.h com: #define CFG_DHT_TYPE DHT22
+#ifndef CFG_DHT_TYPE
+#define CFG_DHT_TYPE DHT11
+#endif
 #define DHT_PIN  4
-#define DHT_TYPE DHT11
+#define DHT_TYPE CFG_DHT_TYPE
 
 // Atuadores
 #define LED_PIN    2    // LED interno da placa

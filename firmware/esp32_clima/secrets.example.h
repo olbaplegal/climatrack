@@ -12,3 +12,7 @@
 #define SECRET_MQTT_SERVER   "xxxxxxxx.s1.eu.hivemq.cloud"
 #define SECRET_MQTT_USER     "esp32_dev"
 #define SECRET_MQTT_PASSWORD "SenhaForte123"
+
+// Opcional: sobrescreve os padrões do .ino (esp32-01 / DHT11)
+// #define CFG_DEVICE_ID "esp32-01"
+// #define CFG_DHT_TYPE  DHT22
