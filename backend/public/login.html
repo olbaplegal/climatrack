@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClimaTrack · Entrar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23eb6834'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="login">
+    <div class="cartao">
+      <div class="marca">Clima<span>Track</span></div>
+      <p class="muted">Monitoramento de temperatura e umidade em tempo real.</p>
+
+      <div class="abas">
+        <button type="button" data-aba="entrar" aria-pressed="true">Entrar</button>
+        <button type="button" data-aba="criar" aria-pressed="false">Criar conta</button>
+      </div>
+
+      <form id="form">
+        <label id="campo-nome" hidden>Nome <input name="nome" autocomplete="name"></label>
+        <label>E-mail <input name="email" type="email" required autocomplete="email"></label>
+        <label>Senha <input name="senha" type="password" required minlength="6" autocomplete="current-password"></label>
+        <div class="erro" id="erro"></div>
+        <button class="primario" type="submit" id="enviar">Entrar</button>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    let aba = 'entrar';
+    const form = document.getElementById('form');
+
+    document.querySelectorAll('[data-aba]').forEach((b) =>
+      b.addEventListener('click', () => {
+        aba = b.dataset.aba;
+        document.querySelectorAll('[data-aba]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+        document.getElementById('campo-nome').hidden = aba !== 'criar';
+        form.nome.required = aba === 'criar';
+        document.getElementById('enviar').textContent = aba === 'criar' ? 'Criar conta' : 'Entrar';
+      }),
+    );
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const dados = Object.fromEntries(new FormData(form));
+      const url = aba === 'criar' ? '/api/auth/registrar' : '/api/auth/login';
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados),
+      });
+      if (resp.ok) return (location.href = '/');
+      document.getElementById('erro').textContent = (await resp.json()).erro || 'Erro';
+    });
+  </script>
+</body>
+</html>

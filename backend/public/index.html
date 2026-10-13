@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClimaTrack · Painel</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23eb6834'/></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+  <header class="topo">
+    <div class="marca">Clima<span>Track</span></div>
+    <div class="espaco"></div>
+    <span class="muted" id="usuario-nome"></span>
+    <button type="button" id="btn-config">Notificações</button>
+    <button type="button" class="texto" id="btn-sair">Sair</button>
+  </header>
+
+  <div class="layout">
+    <!-- ===== Barra lateral: dispositivos ===== -->
+    <aside>
+      <div class="cartao">
+        <h2>Dispositivos</h2>
+        <div class="lista-disp" id="lista-disp"></div>
+        <form id="form-novo" class="cartao" style="padding:12px; background:var(--superficie-2)">
+          <label>ID do dispositivo (DEVICE_ID do firmware)
+            <input name="id" placeholder="esp32-01" required pattern="[A-Za-z0-9_\-]{1,40}">
+          </label>
+          <label style="margin-top:8px">Nome <input name="nome" placeholder="Estufa 1"></label>
+          <label style="margin-top:8px">Local <input name="local" placeholder="Laboratório"></label>
+          <div class="erro" id="erro-novo"></div>
+          <button class="primario" type="submit" style="width:100%">Adicionar</button>
+        </form>
+      </div>
+    </aside>
+
+    <!-- ===== Conteúdo principal ===== -->
+    <main class="conteudo">
+      <div class="cartao vazio" id="vazio" hidden>
+        <h2>Nenhum dispositivo ainda</h2>
+        <p>Ligue o ESP32 (ou rode o simulador) e cadastre o <b>DEVICE_ID</b> dele ao lado.</p>
+      </div>
+
+      <section id="painel" hidden>
+        <div class="conteudo">
+          <div class="cabecalho-disp">
+            <div>
+              <h1 id="disp-nome"></h1>
+              <div class="muted" id="disp-sub"></div>
+            </div>
+            <span class="status" id="disp-status"></span>
+            <div class="espaco" style="flex:1"></div>
+            <div class="filtros">
+              <div class="segmentado" id="periodos" role="group" aria-label="Período">
+                <button type="button" data-p="1h">1 h</button>
+                <button type="button" data-p="6h">6 h</button>
+                <button type="button" data-p="24h">24 h</button>
+                <button type="button" data-p="7d">7 dias</button>
+                <button type="button" data-p="30d">30 dias</button>
+              </div>
+              <a id="btn-csv" href="#"><button type="button">Exportar CSV</button></a>
+            </div>
+          </div>
+
+          <div class="kpis">
+            <div class="cartao kpi">
+              <div class="rotulo">Temperatura atual</div>
+              <div class="valor" id="k-temp">–</div>
+              <div class="detalhe" id="k-temp-det"></div>
+            </div>
+            <div class="cartao kpi">
+              <div class="rotulo">Umidade atual</div>
+              <div class="valor" id="k-umid">–</div>
+              <div class="detalhe" id="k-umid-det"></div>
+            </div>
+            <div class="cartao kpi">
+              <div class="rotulo">Sensação térmica</div>
+              <div class="valor" id="k-ic">–</div>
+              <div class="detalhe" id="k-ic-det">índice de calor (calculado na borda)</div>
+            </div>
+            <div class="cartao kpi">
+              <div class="rotulo">Tempo dentro da faixa</div>
+              <div class="valor" id="k-conf">–</div>
+              <div class="detalhe" id="k-conf-det"></div>
+            </div>
+            <div class="cartao kpi">
+              <div class="rotulo">Alertas no período</div>
+              <div class="valor" id="k-alertas">–</div>
+              <div class="detalhe" id="k-alertas-det"></div>
+            </div>
+          </div>
+
+          <div class="cartao grafico">
+            <h2>Temperatura (°C)</h2>
+            <div class="sub" id="sub-temp"></div>
+            <div class="area"><canvas id="graf-temp" aria-label="Gráfico de temperatura"></canvas></div>
+            <details><summary>Ver dados em tabela</summary><div class="tabela-rolagem" id="tab-temp"></div></details>
+          </div>
+
+          <div class="cartao grafico">
+            <h2>Umidade relativa (%)</h2>
+            <div class="sub" id="sub-umid"></div>
+            <div class="area"><canvas id="graf-umid" aria-label="Gráfico de umidade"></canvas></div>
+          </div>
+
+          <div class="duas-colunas">
+            <div class="cartao">
+              <h2>Controle remoto (nuvem → ESP32)</h2>
+              <div class="controles">
+                <button type="button" data-cmd="led" data-valor="1">💡 Ligar LED</button>
+                <button type="button" data-cmd="led" data-valor="0">Desligar LED</button>
+                <button type="button" data-cmd="buzzer" data-valor="0">🔇 Silenciar buzzer</button>
+                <button type="button" data-cmd="buzzer" data-valor="1">🔔 Reativar buzzer</button>
+                <button type="button" data-cmd="status">Solicitar status</button>
+              </div>
+              <form id="form-intervalo" class="filtros">
+                <label style="flex:1">Intervalo de envio (s)
+                  <input name="valor" type="number" min="5" max="3600" value="15">
+                </label>
+                <button type="submit" style="align-self:flex-end">Aplicar</button>
+              </form>
+
+              <h2 style="margin-top:20px">Limites de alerta</h2>
+              <form id="form-limites">
+                <div class="grade-form">
+                  <label>Nome <input name="nome"></label>
+                  <label>Local <input name="local"></label>
+                  <label>Temp. mínima (°C) <input name="temp_min" type="number" step="0.5"></label>
+                  <label>Temp. máxima (°C) <input name="temp_max" type="number" step="0.5"></label>
+                  <label>Umid. mínima (%) <input name="umid_min" type="number" step="1"></label>
+                  <label>Umid. máxima (%) <input name="umid_max" type="number" step="1"></label>
+                </div>
+                <div class="erro" id="erro-limites"></div>
+                <div class="filtros">
+                  <button class="primario" type="submit">Salvar e sincronizar</button>
+                  <button type="button" class="texto" id="btn-remover">Remover da conta</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="cartao">
+              <h2>Histórico de alertas</h2>
+              <div class="tabela-rolagem">
+                <table>
+                  <thead><tr><th>Quando</th><th>Estado</th><th>Mensagem</th><th>Telegram</th></tr></thead>
+                  <tbody id="tab-alertas"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="dlg-config">
+    <h2>Notificações no Telegram</h2>
+    <ol>
+      <li>No Telegram, abra o bot do projeto e envie <code>/start</code>.</li>
+      <li>O bot responde com o seu <b>Chat ID</b>. Cole abaixo.</li>
+    </ol>
+    <form id="form-config">
+      <label>Chat ID <input name="telegram_chat_id" inputmode="numeric" placeholder="123456789"></label>
+      <div class="erro" id="erro-config"></div>
+      <div class="acoes">
+        <button type="button" id="btn-teste">Enviar teste</button>
+        <button type="button" class="texto" id="btn-fechar">Fechar</button>
+        <button class="primario" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

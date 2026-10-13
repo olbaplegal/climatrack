@@ -1,0 +1,29 @@
+# Ambiente local de desenvolvimento: PostgreSQL + broker MQTT (Mosquitto).
+# Subir:   docker compose up -d --wait   (--wait espera o Postgres ficar pronto)
+# Parar:   docker compose down        (os dados ficam no volume "pgdata")
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: climatrack
+      POSTGRES_PASSWORD: climatrack
+      POSTGRES_DB: climatrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U climatrack -d climatrack"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./infra/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+volumes:
+  pgdata:

@@ -1,0 +1,19 @@
+# Dependências
+node_modules/
+
+# Segredos (senhas do HiveMQ, Supabase, token do Telegram) — NUNCA versionar
+.env
+*.env.local
+
+# Arquivos de sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Arduino IDE
+firmware/**/build/
+
+# Credenciais do firmware (copie secrets.example.h -> secrets.h)
+firmware/**/secrets.h
