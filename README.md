@@ -177,7 +177,7 @@ Envie `/status` e `/led_on` ao bot para testar o caminho Telegram → nuvem → 
 3. Na pasta `firmware/esp32_clima/`, copie `secrets.example.h` para **`secrets.h`** e preencha Wi-Fi,
    `SECRET_MQTT_SERVER` (URL do cluster, sem `mqtts://`), usuário `esp32_dev` e a senha. Esse arquivo fica
    fora do git, então as senhas não vão para o GitHub. Ele aparece como uma aba na Arduino IDE.
-   No `.ino`, ajuste `DEVICE_ID` (ex.: `esp32-01`) e, se o sensor for DHT22, `DHT_TYPE`.
+   O ID padrão é `esp32-01` com DHT11. Para mudar, descomente no `secrets.h` as linhas `CFG_DEVICE_ID` / `CFG_DHT_TYPE`.
 4. Placa: *ESP32 Dev Module*. Selecione a porta e faça o **Upload**.
 5. Abra o **Serial Monitor** em **115200**. Deve aparecer: Wi-Fi conectado → `Conectando ao HiveMQ... conectado!` →
    `Dados publicados: {...}`.
