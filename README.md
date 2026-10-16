@@ -24,7 +24,9 @@ ESP32 + DHT11 ──MQTT/TLS──► HiveMQ Cloud ──► Back-end Node.js �
 | `backend/sql/schema.sql` | Modelo de dados (criado automaticamente ao iniciar) |
 | `backend/scripts/simulador.js` | Simulador de ESP32 (testes e plano B na demo) |
 | `docker-compose.yml` | PostgreSQL + broker Mosquitto **locais**, só para desenvolvimento |
+| `render.yaml` | Implantação do back-end no Render (infraestrutura como código) |
 | `docs/ARQUITETURA.md` | Material para o relatório técnico (diagramas, fluxos, modelo de dados) |
+| `docs/NUVEM_SLA.md` | Modelos de nuvem (IaaS/PaaS/SaaS), cotas dos planos gratuitos e proposta de SLA |
 
 ## Como cada requisito do enunciado é atendido
 
@@ -37,7 +39,7 @@ ESP32 + DHT11 ──MQTT/TLS──► HiveMQ Cloud ──► Back-end Node.js �
 | Ingestão e armazenamento | `backend/src/ingestao.js` → PostgreSQL (Supabase) |
 | Dashboard / back-end | Painel SaaS multiusuário em `backend/public/` + API em `backend/src/api.js` |
 | Notificações | Telegram: alerta disparado/normalizado, dispositivo offline, bot com `/status`, `/led_on`, `/led_off` |
-| Modelos de nuvem / SLA | **Próxima etapa** (conteúdo ainda será dado em aula). Já existe a rota `/api/saude` e a medição de latência de alertas para servir de base |
+| Modelos de nuvem / SLA | `docs/NUVEM_SLA.md`: Render, Supabase e HiveMQ (PaaS), Telegram e UptimeRobot (SaaS), o ClimaTrack como SaaS, comparação com IaaS, cotas dos planos gratuitos e proposta de SLA com métricas medidas pelo próprio sistema |
 
 ---
 
@@ -212,15 +214,94 @@ O Wokwi executa o **mesmo firmware**; só muda o `secrets.h`. Os arquivos pronto
 > GPIO 2 → resistor → LED (perna longa, A) e LED (C) → GND.
 > A simulação pode rodar mais devagar que o tempo real e a conexão TLS leva alguns segundos. É normal.
 
-## Etapa 6 — Roteiro sugerido para a demonstração (pré-banca e banca)
+## Etapa 6 — Publicar o back-end na nuvem (Render + UptimeRobot)
+
+Até aqui o back-end rodava no seu computador. Agora ele vai para o **Render** (PaaS): o painel ganha um endereço
+público `https://...onrender.com` e funciona com o seu PC desligado. Broker (HiveMQ) e banco (Supabase) **não
+mudam**. A análise completa (modelos de nuvem, cotas e SLA) está em `docs/NUVEM_SLA.md`.
+
+### 6.1 Enviar o projeto para o GitHub (repositório privado)
+
+O Render implanta direto de um repositório Git.
+
+1. Confira que nenhum segredo está versionado. O comando abaixo **não deve listar nada**:
+   ```bash
+   git ls-files | grep -E '(^|/)\.env$|secrets\.h$'
+   ```
+2. Em https://github.com/new crie um repositório **privado** chamado `climatrack`, **sem** README nem `.gitignore`.
+3. No terminal, na pasta `projeto-final`:
+   ```bash
+   git remote add origin https://github.com/SEU_USUARIO/climatrack.git
+   git push -u origin main
+   ```
+   (O GitHub pede login; use um *Personal Access Token* como senha ou `gh auth login`.)
+
+### 6.2 Criar o serviço no Render
+
+1. Crie a conta em https://render.com usando **Sign in with GitHub** e autorize o acesso ao repositório `climatrack`.
+2. **New → Blueprint** → escolha o repositório. O Render lê o arquivo `render.yaml` (infraestrutura como código)
+   e já preenche plano gratuito, região, comandos de build/start e *health check*.
+3. Ele pede os valores secretos (os marcados com `sync: false`). Copie do seu `backend/.env`:
+
+   | Variável | Valor |
+   |---|---|
+   | `DATABASE_URL` | a mesma do Supabase (Session pooler) |
+   | `MQTT_URL` | `mqtts://SEU-CLUSTER.s1.eu.hivemq.cloud:8883` |
+   | `MQTT_PASSWORD` | senha do usuário `backend` do HiveMQ |
+   | `TELEGRAM_BOT_TOKEN` | token do bot |
+   | `TELEGRAM_CHAT_ID_PADRAO` | o seu chat ID (ou deixe vazio) |
+
+   `JWT_SECRET` é gerado pelo próprio Render. Os demais valores já vêm do `render.yaml`.
+4. **Antes de clicar em *Apply*: pare o back-end local** (Ctrl+C). Dois back-ends ligados ao mesmo broker e ao
+   mesmo bot gravam leituras em dobro, duplicam alertas e o Telegram recusa o segundo
+   (`Conflict: terminated by other getUpdates request`).
+5. Clique em **Apply** e acompanhe a aba **Logs**. O deploy termina quando aparecerem `[db] esquema verificado`
+   e `[mqtt] conectado a mqtts://...`, e o status ficar **Live** (leva de 2 a 5 minutos).
+
+> Se o Blueprint pedir cartão de crédito, crie o serviço manualmente: **New → Web Service** → repositório →
+> *Root Directory* `backend`, *Build* `npm ci`, *Start* `npm start`, *Instance type* **Free**,
+> *Health Check Path* `/api/saude` (em *Advanced*), e cadastre **todas** as variáveis do `render.yaml`
+> em *Environment*, incluindo um `JWT_SECRET` longo inventado por você.
+
+**Teste:** abra `https://SEU-SERVICO.onrender.com/api/saude`. Deve mostrar `"status":"ok"`, `"banco":true` e
+`"mqtt":true`. Entre no painel com a mesma conta de antes (o banco é o mesmo) e ligue o Wokwi ou o simulador:
+os dados devem aparecer ao vivo. Teste um alerta e o `/status` no Telegram.
+
+### 6.3 Manter o serviço acordado e medir a disponibilidade (UptimeRobot)
+
+O plano gratuito do Render **desliga o serviço após 15 minutos sem acessos HTTP**. Mensagens MQTT não contam,
+então o back-end pararia de receber dados e de gerar alertas. A solução também mede a disponibilidade para o SLA:
+
+1. Crie a conta gratuita em https://uptimerobot.com.
+2. **New monitor** → tipo **HTTP(s)** → URL `https://SEU-SERVICO.onrender.com/api/saude` → intervalo **5 minutos**.
+3. (Opcional, bom para a apresentação) **Status pages → New** → adicione o monitor. Você ganha uma página
+   pública de disponibilidade para mostrar na banca.
+
+O `/api/saude` responde **200** só quando banco **e** broker estão conectados (caso contrário, **503**). Por isso o
+UptimeRobot mede a disponibilidade real da ingestão, não apenas se o site abre.
+
+**Teste de recuperação (RTO):** no Render, **Manual Deploy → Restart service**. Cronometre até o
+`/api/saude` voltar a responder `ok` e anote o tempo para o relatório (métrica 7 do SLA).
+
+### 6.4 Daqui em diante
+
+- **Atualizar o sistema:** `git commit` + `git push`. O Render faz o deploy sozinho (`autoDeploy`).
+- **Ver logs:** aba *Logs* do serviço no Render.
+- **Desenvolver no PC sem atrapalhar a nuvem:** use o ambiente local da Etapa 1 (Docker). Guarde a versão de
+  nuvem do `.env` como `backend/.env.nuvem` (também é ignorada pelo Git) e deixe o `backend/.env` com os valores
+  locais do `.env.example`. **Nunca** rode o back-end local com as credenciais de nuvem enquanto o Render estiver ligado.
+
+## Etapa 7 — Roteiro sugerido para a demonstração (pré-banca e banca)
 
 1. Mostrar o ESP32 ligado e o Serial Monitor (leituras, média móvel, envios).
-2. Painel: gráficos de 24 h / 7 dias, cartões de estatística, tempo dentro da faixa, exportar CSV.
+2. Painel **na nuvem** (`https://...onrender.com`), aberto no celular de alguém da banca: gráficos de 24 h /
+   7 dias, cartões de estatística, tempo dentro da faixa, disponibilidade do sensor, exportar CSV.
 3. **Telemetria ao vivo**: período 1 h, aquecer o sensor com a mão.
 4. **Alerta**: limite máximo baixo → alerta no painel + Telegram (mostrar a latência medida) + LED aceso.
 5. **Comando**: botões *Ligar/Desligar LED* no painel e `/led_on` no Telegram.
 6. **Resiliência**: desligar o ESP32 da energia → em até ~90 s o broker publica o Last Will → alerta *offline*.
-7. Plano B: se a rede falhar, rode o `simulador` para mostrar o fluxo de nuvem.
+7. **Nuvem e SLA**: página de status do UptimeRobot e cartões de latência (média/p95) e disponibilidade.
+8. Plano B: se a rede falhar, rode o `simulador` para mostrar o fluxo de nuvem.
 
 > Deixe o ESP32 (ou o simulador) rodando algumas horas/dias antes da apresentação para os gráficos de
 > 24 h e 7 dias terem histórico real.
@@ -263,13 +344,13 @@ O Wokwi executa o **mesmo firmware**; só muda o `secrets.h`. Os arquivos pronto
 | Back-end: `password authentication failed` | Senha do Supabase errada ou com caractere especial sem codificar |
 | Dados chegam no HiveMQ mas não no painel | Dispositivo não foi adicionado à sua conta, ou `DEVICE_ID` diferente |
 | Telegram não chega | Não enviou `/start` ao bot, Chat ID não salvo, ou token errado |
+| Telegram: `Conflict: terminated by other getUpdates request` | Dois back-ends ligados com o mesmo bot (ex.: local + Render). Pare o local. Por alguns segundos durante um deploy é normal |
+| Painel na nuvem demora ~1 min para abrir | O Render "dormiu": falta o monitor do UptimeRobot (Etapa 6.3) |
+| Deploy no Render falha no *health check* | Variável errada ou faltando; veja a aba *Logs* (`/api/saude` só responde 200 com banco e broker conectados) |
 
 ## Próximas etapas (pendentes)
 
-- [ ] **Modelos de nuvem (IaaS / PaaS / SaaS)** — aguardando o conteúdo da aula. Mapeamento previsto: HiveMQ Cloud
-      e Supabase (serviços gerenciados), hospedagem do back-end (ex.: Render, como citado nas aulas), e o próprio
-      ClimaTrack como SaaS para o cliente final, com cotas dos planos gratuitos.
-- [ ] **Publicar o back-end na nuvem** (Render ou similar) para o painel ser acessível por qualquer pessoa.
-- [ ] **Proposta de SLA** — disponibilidade (`/api/saude` + monitor externo), latência de alerta (já medida em
-      `alertas.latencia_ms`), RTO/RPO.
-- [ ] Relatório técnico e slides (ver `docs/ARQUITETURA.md`).
+- [x] Modelos de nuvem, cotas e proposta de SLA (`docs/NUVEM_SLA.md`).
+- [ ] Publicar no Render + UptimeRobot (Etapa 6) e anotar os valores medidos na tabela de SLA.
+- [ ] Teste com o ESP32 físico.
+- [ ] Relatório técnico e slides (`docs/ARQUITETURA.md` + `docs/NUVEM_SLA.md`).

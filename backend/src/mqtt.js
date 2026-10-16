@@ -16,7 +16,8 @@ function conectar() {
   client = mqtt.connect(config.mqttUrl, {
     username: config.mqttUser,
     password: config.mqttPassword,
-    clientId: `climatrack-backend-${Math.random().toString(16).slice(2, 8)}`,
+    clientId: config.mqttClientId || `climatrack-backend-${Math.random().toString(16).slice(2, 8)}`,
+    clean: !config.mqttClientId,
     reconnectPeriod: 5000,
     keepalive: 60,
   });
@@ -40,6 +41,11 @@ function conectar() {
   });
 }
 
+// Desconexão educada (o broker não publica nada e mantém a sessão persistente, se houver)
+function encerrar() {
+  return client ? client.endAsync() : Promise.resolve();
+}
+
 function aoReceber(handler) {
   handlerMensagem = handler;
 }
@@ -61,4 +67,4 @@ async function publicarComando(deviceId, payload, origem, usuarioId = null) {
   console.log(`[mqtt] comando -> ${topico}`, payload);
 }
 
-module.exports = { conectar, aoReceber, conectado, publicarComando };
+module.exports = { conectar, encerrar, aoReceber, conectado, publicarComando };

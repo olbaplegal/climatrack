@@ -1,0 +1,45 @@
+# Blueprint do Render (infraestrutura como código).
+# No painel do Render: New > Blueprint > escolha este repositório.
+# Os valores marcados com "sync: false" são pedidos na criação e nunca ficam no Git.
+services:
+  - type: web
+    name: climatrack
+    runtime: node
+    plan: free
+    region: virginia          # sem região na América do Sul; Virginia é a mais próxima do Supabase (sa-east-1)
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    autoDeploy: true          # cada git push na branch main gera um novo deploy
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production     # ativa o cookie "secure" (só HTTPS)
+      - key: JWT_SECRET
+        generateValue: true   # o Render gera um segredo aleatório
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: MQTT_URL
+        sync: false
+      - key: MQTT_USER
+        value: backend
+      - key: MQTT_PASSWORD
+        sync: false
+      - key: MQTT_CLIENT_ID
+        value: climatrack-backend-render
+      - key: MQTT_TOPIC_PREFIX
+        value: clima
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID_PADRAO
+        sync: false
+      - key: TELEGRAM_POLLING
+        value: "true"
+      - key: OFFLINE_TOLERANCIA_S
+        value: "60"
+      - key: RETENCAO_DIAS
+        value: "90"

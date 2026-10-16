@@ -3,6 +3,8 @@ node_modules/
 
 # Segredos (senhas do HiveMQ, Supabase, token do Telegram) — NUNCA versionar
 .env
+.env.*
+!.env.example
 *.env.local
 
 # Arquivos de sistema / editor

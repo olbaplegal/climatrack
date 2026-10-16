@@ -27,7 +27,7 @@ flowchart LR
 
   subgraph Nuvem
     BROKER[(HiveMQ Cloud<br/>broker MQTT · TLS 8883)]
-    subgraph Backend["Back-end Node.js"]
+    subgraph Backend["Back-end Node.js (Render)"]
       ING[Ingestão MQTT]
       REG[Motor de regras]
       API[API REST + login]
@@ -194,7 +194,7 @@ erDiagram
 |---|---|---|
 | Firmware | C++/Arduino, bibliotecas DHT, PubSubClient, ArduinoJson | Coleta, borda, MQTT |
 | Broker | HiveMQ Cloud (MQTT 3.1.1/5, TLS) | Mensageria publish/subscribe |
-| Back-end | Node.js 20+, Express 5, mqtt.js, pg, bcryptjs, jsonwebtoken | Ingestão, regras, API, autenticação |
+| Back-end | Node.js 24 no Render (PaaS), Express 5, mqtt.js, pg, bcryptjs, jsonwebtoken | Ingestão, regras, API, autenticação |
 | Banco | PostgreSQL (Supabase) | Persistência relacional/séries temporais |
 | Front-end | HTML/CSS/JS + Chart.js | Painel SaaS, gráficos, controles |
 | Notificação | Telegram Bot API | Alertas e comandos pelo celular |
@@ -213,8 +213,7 @@ de estado, histerese, medição de latência), que seriam difíceis de manter em
 - Limitação conhecida (para as *Considerações finais*): o ESP32 usa `setInsecure()` (não valida o certificado do
   broker). Evolução: gravar o certificado raiz CA no firmware.
 
-## 9. Pendente
+## 9. Nuvem e SLA
 
-- Análise dos modelos de nuvem (IaaS/PaaS/SaaS) e cotas dos planos gratuitos — após a aula.
-- Proposta de SLA.
-- Considerações finais.
+Ver `docs/NUVEM_SLA.md` (modelos de serviço e de implantação, cotas dos planos gratuitos, comparação com IaaS e
+proposta de SLA).

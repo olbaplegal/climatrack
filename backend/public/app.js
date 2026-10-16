@@ -156,9 +156,10 @@ function renderKpis({ estatisticas: e, alertas: a, ultima_leitura: u, dispositiv
     : '';
   $('#k-conf').innerHTML = e.conformidade_pct != null ? `${fmt(e.conformidade_pct)}<small> %</small>` : '–';
   $('#k-conf-det').textContent = `${fmt(d.temp_min, 0)}–${fmt(d.temp_max, 0)} °C e ${fmt(d.umid_min, 0)}–${fmt(d.umid_max, 0)} % · ${e.total_leituras} leituras`;
+  $('#k-disp').innerHTML = e.disponibilidade_pct != null ? `${fmt(e.disponibilidade_pct)}<small> %</small>` : '–';
   $('#k-alertas').textContent = a.total;
   $('#k-alertas-det').textContent = a.latencia_media_ms != null
-    ? `latência média ${a.latencia_media_ms} ms · máx ${a.latencia_max_ms} ms`
+    ? `latência média ${a.latencia_media_ms} ms · p95 ${a.latencia_p95_ms} ms · máx ${a.latencia_max_ms} ms`
     : 'nenhum alerta disparado';
 }
 

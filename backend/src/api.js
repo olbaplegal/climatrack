@@ -253,16 +253,22 @@ router.get('/dispositivos/:id/resumo', async (req, res) => {
             round(avg(umidade)::numeric, 1)::float8 AS umid_media,
             round(100.0 * count(*) FILTER (
               WHERE temperatura BETWEEN $3 AND $4 AND umidade BETWEEN $5 AND $6
-            ) / NULLIF(count(*), 0), 1)::float8 AS conformidade_pct
+            ) / NULLIF(count(*), 0), 1)::float8 AS conformidade_pct,
+            -- Disponibilidade (SLA): % dos minutos do período com pelo menos uma leitura recebida.
+            -- O período começa no cadastro do dispositivo, se ele for mais novo que a janela.
+            least(100, round(100.0 * count(DISTINCT date_trunc('minute', data_hora)) / greatest(1, ceil(
+              extract(epoch FROM now() - greatest(now() - $2::interval, $7::timestamptz)) / 60
+            )), 1))::float8 AS disponibilidade_pct
        FROM leituras
       WHERE dispositivo_id = $1 AND data_hora >= now() - $2::interval`,
-    [disp.id, janela, disp.temp_min, disp.temp_max, disp.umid_min, disp.umid_max],
+    [disp.id, janela, disp.temp_min, disp.temp_max, disp.umid_min, disp.umid_max, disp.criado_em],
   );
 
   const alertas = await db.query(
     `SELECT count(*)::int AS total,
             round(avg(latencia_ms))::int AS latencia_media_ms,
-            max(latencia_ms) AS latencia_max_ms
+            max(latencia_ms) AS latencia_max_ms,
+            round(percentile_cont(0.95) WITHIN GROUP (ORDER BY latencia_ms))::int AS latencia_p95_ms
        FROM alertas
       WHERE dispositivo_id = $1 AND estado = 'disparado' AND criado_em >= now() - $2::interval`,
     [disp.id, janela],
