@@ -155,17 +155,21 @@ entre **2 e 8 °C**. Uma falha não percebida pode estragar o estoque inteiro, p
 | # | Métrica | Meta | Como é medida no protótipo | Valor observado no protótipo* |
 |---|---|---|---|---|
 | 1 | **Disponibilidade da plataforma** (painel + API + ingestão) | **≥ 99,5 % ao mês** (até 3 h 36 min fora do ar) | UptimeRobot consulta `/api/saude` a cada 5 min; só conta como "no ar" se banco **e** broker estiverem conectados (HTTP 200) | ver painel do UptimeRobot |
-| 2 | **Latência de alerta** (leitura no ESP32 → mensagem enviada ao Telegram) | **p95 ≤ 5 s**; máximo 30 s | Coluna `alertas.latencia_ms`; o painel mostra média, p95 e máximo | ~1 s |
+| 2 | **Latência de alerta** (leitura no ESP32 → mensagem enviada ao Telegram) | **p95 ≤ 5 s**; máximo 30 s | Coluna `alertas.latencia_ms`; o painel mostra média, p95 e máximo | 0,9 s (alerta de temperatura, Wokwi → Render → Telegram, 16/10) |
 | 3 | **Detecção de sensor fora do ar** | Alerta em **≤ 3 min** após a queda | *Keep-alive* MQTT de 60 s (o broker detecta em até 90 s) + tolerância de 60 s contra quedas rápidas de Wi-Fi ≈ 150 s | ~150 s |
 | 4 | **Disponibilidade dos dados do sensor** (completude) | **≥ 99 %** dos minutos com leitura recebida | KPI "Disponibilidade do sensor" no painel (minutos com dados ÷ minutos do período) | ver painel |
 | 5 | **Latência de comando** (clique no painel → LED muda no ESP32) | p95 ≤ 2 s | Log do back-end (comando) × status de confirmação (ACK) publicado pelo ESP32 | medir na demo |
 | 6 | **Atualização do painel** | ≤ 2 s após a leitura chegar | Eventos em tempo real (SSE) | < 1 s |
-| 7 | **RTO** — tempo de recuperação do back-end | **≤ 5 min** | Reinício automático do Render pelo *health check*; redeploy a partir do GitHub | medir na demo (reiniciar o serviço) |
+| 6b | **Latência de ingestão** (publicação no broker → gravação no banco) | p95 ≤ 2 s | `leituras.recebido_em − data_hora` | 0,37–0,44 s |
+| 7 | **RTO** — tempo de recuperação do back-end | **≤ 5 min** | Reinício automático do Render pelo *health check*; redeploy a partir do GitHub | **~2–4 s** fora do ar no *restart* (16/10: uma única verificação com HTTP 503; a nova instância respondeu `ok` com 6 s de vida) |
 | 8 | **RTO** — reconexão do sensor após a volta da rede | ≤ 1 min | Firmware tenta reconectar Wi-Fi e MQTT a cada 5 s | ~15 s (Wokwi) |
 | 9 | **RPO** — perda máxima de dados | Produção: ≤ 24 h (backup diário) | Protótipo: sem backup (Supabase Free); exportação CSV manual | — |
 | 10 | **Retenção dos dados** | 90 dias de leituras; alertas indefinidamente | Rotina de retenção do back-end | — |
 
-\* Preencher com os valores medidos durante os testes finais e a demonstração.
+\* Valores medidos em 16/10/2026 com o back-end no Render e o ESP32 no Wokwi. Completar os que faltam na
+demonstração. No *restart*, o Render sobe a nova instância antes de desligar a antiga; como as duas usam o
+mesmo `MQTT_CLIENT_ID`, o broker desconecta a antiga, que responde 503 por um instante. Por isso a
+indisponibilidade medida foi de poucos segundos, e não houve leituras gravadas em dobro.
 
 **Por que 99,5 % e não 99,9 %?** A disponibilidade de serviços **em série** é o produto das disponibilidades.
 Supondo planos pagos com 99,95 % (HiveMQ Starter), 99,9 % (banco) e 99,9 % (hospedagem):
