@@ -206,7 +206,7 @@ function criarGrafico(canvas, { rotulo, unidade, corSerie, casas }) {
         { label: `${rotulo} (mín)`, data: [], borderWidth: 0, pointRadius: 0, fill: false },
         {
           label: rotulo, data: [], borderColor: corSerie, backgroundColor: corSerie,
-          borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, pointHoverBorderWidth: 2,
+          borderWidth: 2, pointRadius: (c) => (c.raw?.isolado ? 3 : 0), pointHoverRadius: 5, pointHoverBorderWidth: 2,
           pointHoverBorderColor: cor('--superficie'), tension: 0.25,
         },
       ],
@@ -258,23 +258,42 @@ function garantirGraficos() {
   estado.graficos.umid = criarGrafico($('#graf-umid'), { rotulo: 'Umidade', unidade: '%', corSerie: cor('--serie-umid'), casas: 0 });
 }
 
+// Insere um ponto vazio onde faltam dados (sensor desligado), para a linha não "ligar" períodos distantes.
+// Lacuna = distância maior que 2 intervalos de agregação (ou 2 min, nas leituras individuais).
+// Pontos isolados entre lacunas ganham um marcador para continuarem visíveis.
+const UNIDADE_MS = { minute: 60000, minutes: 60000, hour: 3600000, hours: 3600000 };
+function comLacunas(pontos, agregacao) {
+  const [qtd, unidade] = (agregacao || '').split(' ');
+  const limite = agregacao ? 2 * Number(qtd) * UNIDADE_MS[unidade] : 2 * 60000;
+  const ts = pontos.map((p) => Date.parse(p.t));
+  const saida = [];
+  pontos.forEach((p, i) => {
+    if (i > 0 && ts[i] - ts[i - 1] > limite) saida.push({ t: new Date(ts[i - 1] + 1).toISOString(), lacuna: true });
+    saida.push({ ...p });
+  });
+  saida.forEach((p, i) => {
+    if (!p.lacuna) p.isolado = (i === 0 || saida[i - 1].lacuna) && (i === saida.length - 1 || saida[i + 1].lacuna);
+  });
+  return saida;
+}
+
 function renderGraficos(serie, d) {
   garantirGraficos();
-  const pts = serie.pontos;
+  const pts = comLacunas(serie.pontos, serie.agregacao);
   const temp = estado.graficos.temp;
   const umid = estado.graficos.umid;
 
-  temp.data.datasets[0].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.temp_max }));
-  temp.data.datasets[1].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.temp_min }));
-  temp.data.datasets[2].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.temperatura, min: p.temp_min, max: p.temp_max }));
+  temp.data.datasets[0].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.temp_max ?? null }));
+  temp.data.datasets[1].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.temp_min ?? null }));
+  temp.data.datasets[2].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.temperatura ?? null, min: p.temp_min, max: p.temp_max, isolado: p.isolado }));
   temp.options.plugins.limites.linhas = [
     { valor: d.temp_max, rotulo: `máx ${fmt(d.temp_max)} °C` },
     { valor: d.temp_min, rotulo: `mín ${fmt(d.temp_min)} °C` },
   ];
 
-  umid.data.datasets[0].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.umid_max }));
-  umid.data.datasets[1].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.umid_min }));
-  umid.data.datasets[2].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.umidade, min: p.umid_min, max: p.umid_max }));
+  umid.data.datasets[0].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.umid_max ?? null }));
+  umid.data.datasets[1].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.umid_min ?? null }));
+  umid.data.datasets[2].data = pts.map((p) => ({ x: Date.parse(p.t), y: p.umidade ?? null, min: p.umid_min, max: p.umid_max, isolado: p.isolado }));
   umid.options.plugins.limites.linhas = [
     { valor: d.umid_max, rotulo: `máx ${fmt(d.umid_max, 0)} %` },
     { valor: d.umid_min, rotulo: `mín ${fmt(d.umid_min, 0)} %` },
@@ -289,7 +308,7 @@ function renderGraficos(serie, d) {
   $('#sub-temp').textContent = sub;
   $('#sub-umid').textContent = sub;
 
-  renderTabelaDados(pts);
+  renderTabelaDados(serie.pontos);
 }
 
 function renderTabelaDados(pts) {
