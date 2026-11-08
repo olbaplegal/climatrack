@@ -155,7 +155,7 @@ entre **2 e 8 °C**. Uma falha não percebida pode estragar o estoque inteiro, p
 | # | Métrica | Meta | Como é medida no protótipo | Valor observado no protótipo* |
 |---|---|---|---|---|
 | 1 | **Disponibilidade da plataforma** (painel + API + ingestão) | **≥ 99,5 % ao mês** (até 3 h 36 min fora do ar) | UptimeRobot consulta `/api/saude` a cada 5 min; só conta como "no ar" se banco **e** broker estiverem conectados (HTTP 200) | ver painel do UptimeRobot |
-| 2 | **Latência de alerta** (leitura no ESP32 → mensagem enviada ao Telegram) | **p95 ≤ 5 s**; máximo 30 s | Coluna `alertas.latencia_ms`; o painel mostra média, p95 e máximo | 0,9 s (alerta de temperatura, Wokwi → Render → Telegram, 16/10) |
+| 2 | **Latência de alerta** (leitura no ESP32 → mensagem enviada ao Telegram) | **p95 < 3 s**; máximo 10 s | Coluna `alertas.latencia_ms`; o painel mostra média, p95 e máximo | média 0,83 s; p95 1,39 s; máx. 1,65 s (48 alertas até 04/11) |
 | 3 | **Detecção de sensor fora do ar** | Alerta em **≤ 3 min** após a queda | *Keep-alive* MQTT de 60 s (o broker detecta em até 90 s) + tolerância de 60 s contra quedas rápidas de Wi-Fi ≈ 150 s | ~150 s |
 | 4 | **Disponibilidade dos dados do sensor** (completude) | **≥ 99 %** dos minutos com leitura recebida | KPI "Disponibilidade do sensor" no painel (minutos com dados ÷ minutos do período) | ver painel |
 | 5 | **Latência de comando** (clique no painel → LED muda no ESP32) | p95 ≤ 2 s | Log do back-end (comando) × status de confirmação (ACK) publicado pelo ESP32 | medir na demo |

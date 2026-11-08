@@ -1,0 +1,152 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>body{margin:0;background:#fff;font-family:Arial,sans-serif}.d{display:block;width:max-content;padding:24px;background:#fff}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script></head><body>
+<div class="d" id="arq"><pre class="mermaid">
+flowchart LR
+  subgraph Borda["Borda (Edge)"]
+    direction TB
+    DHT["Sensor DHT11"] --> ESP["ESP32<br/>média móvel · filtro de picos<br/>índice de calor · deadband<br/>alarme local"]
+    ESP --> ATU["LED / Buzzer"]
+  end
+  BROKER[("HiveMQ Cloud<br/>broker MQTT<br/>TLS 8883")]
+  subgraph Backend["Back-end Node.js (Render)"]
+    direction TB
+    ING["Ingestão MQTT"] --> REG["Motor de regras<br/>histerese · offline"]
+    API["API REST + login + SSE"]
+    BOT["Bot Telegram"]
+  end
+  DB[("PostgreSQL<br/>Supabase")]
+  TG["Telegram<br/>celular"]
+  WEB["Painel web SaaS<br/>navegador"]
+  UR["UptimeRobot"]
+  ESP -- "dados / status (LWT)" --> BROKER
+  BROKER -- "comando" --> ESP
+  BROKER <--> ING
+  REG -- "comando LED" --> BROKER
+  ING --> DB
+  API <--> DB
+  REG -- "alerta" --> TG
+  BOT <--> TG
+  WEB <-- "HTTPS + SSE" --> API
+  UR -- "/api/saude" --> API
+</pre></div>
+<div class="d" id="seq1"><pre class="mermaid">
+sequenceDiagram
+  participant S as DHT11
+  participant E as ESP32
+  participant B as HiveMQ
+  participant N as Back-end (Render)
+  participant D as PostgreSQL
+  participant W as Painel
+  loop a cada 2,5 s
+    E->>S: lê temperatura e umidade
+    E->>E: descarta inválidas e picos, média móvel (5 amostras)
+    E->>E: alarme local se fora do limite (LED/buzzer)
+  end
+  E->>B: publish clima/esp32-01/dados (a cada 15 s ou variação ≥ 1 °C / 5 %)
+  B->>N: entrega
+  N->>N: valida faixa física e horário
+  N->>D: INSERT leituras
+  N-->>W: evento "leitura" (SSE), gráfico atualiza
+</pre></div>
+<div class="d" id="seq2"><pre class="mermaid">
+sequenceDiagram
+  participant U as Usuário (painel/Telegram)
+  participant E as ESP32
+  participant B as HiveMQ
+  participant N as Back-end
+  participant T as Telegram
+  participant D as PostgreSQL
+  E->>B: dados (temperatura 25,1 °C)
+  B->>N: entrega
+  N->>N: regra temp_alta (limite 25 °C), estado anterior = normal
+  N->>T: "Temperatura ALTA" (latência medida)
+  N->>D: INSERT alertas (latencia_ms)
+  N->>B: clima/esp32-01/comando {"comando":"led","valor":1}
+  B->>E: comando
+  E->>E: liga LED e publica status (confirmação)
+  U->>N: "Ligar LED" no painel ou /led_on no Telegram
+  N->>B: comando
+  B->>E: comando
+</pre></div>
+<div class="d" id="er"><pre class="mermaid">
+erDiagram
+  usuarios ||--o{ dispositivos : possui
+  dispositivos ||--o{ leituras : gera
+  dispositivos ||--o{ alertas : dispara
+  dispositivos ||--o{ comandos : recebe
+  usuarios ||--o{ comandos : envia
+  usuarios {
+    serial id PK
+    text nome
+    text email UK
+    text senha_hash
+    text telegram_chat_id
+  }
+  dispositivos {
+    text id PK
+    int usuario_id FK
+    text nome
+    text local
+    real temp_min
+    real temp_max
+    real umid_min
+    real umid_max
+    text status
+    timestamptz ultimo_dado_em
+  }
+  leituras {
+    bigserial id PK
+    text dispositivo_id FK
+    timestamptz data_hora
+    real temperatura
+    real umidade
+    real indice_calor
+    int rssi
+    text motivo
+  }
+  alertas {
+    bigserial id PK
+    text dispositivo_id FK
+    text tipo
+    text estado
+    real valor
+    bool enviado_telegram
+    int latencia_ms
+  }
+  comandos {
+    bigserial id PK
+    text dispositivo_id FK
+    int usuario_id FK
+    text origem
+    jsonb payload
+  }
+</pre></div>
+<div class="d" id="nuvem"><pre class="mermaid">
+flowchart LR
+  subgraph Cliente["Cliente (on-premises)"]
+    ESP["ESP32 + DHT11"]
+    NAV["Navegador / celular"]
+  end
+  subgraph PaaS
+    HMQ["HiveMQ Cloud<br/>broker MQTT gerenciado"]
+    RND["Render<br/>executa o back-end"]
+    SUP["Supabase<br/>PostgreSQL gerenciado"]
+  end
+  subgraph SaaS
+    TG["Telegram Bot API"]
+    UR["UptimeRobot"]
+    GH["GitHub"]
+  end
+  CT[["ClimaTrack<br/>SaaS para o cliente final"]]
+  ESP -- MQTT/TLS --> HMQ
+  HMQ <--> RND
+  RND <--> SUP
+  RND --> TG
+  UR -- "ping a cada 5 min" --> RND
+  GH -- "git push = deploy" --> RND
+  NAV -- HTTPS --> CT
+  RND -. "infraestrutura do" .- CT
+</pre></div>
+<script>mermaid.initialize({startOnLoad:true,theme:'neutral',themeVariables:{fontSize:'16px',fontFamily:'Arial'},flowchart:{useMaxWidth:false,curve:'basis',nodeSpacing:40,rankSpacing:60},sequence:{useMaxWidth:false,mirrorActors:false},er:{useMaxWidth:false}});</script>
+</body></html>
