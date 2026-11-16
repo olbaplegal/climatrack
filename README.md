@@ -7,6 +7,11 @@ acompanha pelo navegador (computador ou celular) as leituras em tempo real e o h
 e sensação térmica. Quando um valor sai da faixa configurada, o sistema avisa no painel e no Telegram e pode
 acionar o próprio dispositivo (LED/buzzer).
 
+![Painel do ClimaTrack: lista de dispositivos, indicadores e gráfico de temperatura dos últimos 7 dias](docs/img/painel-visao-geral.png)
+
+> **Quer só ver funcionando?** Com Docker e Node.js instalados, siga a seção [Rodar localmente](#1-rodar-localmente):
+> em poucos minutos o painel está aberto no navegador com um dispositivo simulado, sem hardware e sem contas na nuvem.
+
 ---
 
 ## Visão geral
@@ -25,6 +30,8 @@ acionar o próprio dispositivo (LED/buzzer).
 - **Processamento na borda**: o ESP32 faz média móvel, descarta leituras com ruído, calcula o índice de calor,
   só envia quando o valor muda o suficiente (*deadband*) e mantém um alarme local mesmo sem internet.
 - **Detecção de queda**: o broker publica o *Last Will* do ESP32 quando ele desconecta sem avisar.
+
+![Controle remoto, limites de alerta e histórico de alertas com o tempo de envio ao Telegram](docs/img/controle-alertas.png)
 
 ### Arquitetura
 
@@ -155,6 +162,8 @@ As tabelas são criadas na primeira inicialização. Se a senha tiver caracteres
 4. Envie `/start` ao bot. Ele responde com o seu **Chat ID**.
 5. No painel, em **Notificações**, cole o Chat ID e clique em **Enviar teste**.
 
+<p align="center"><img src="docs/img/notificacoes.png" alt="Janela de notificações do painel, onde se cadastra o Chat ID do Telegram" width="440"></p>
+
 Os alertas vão para o Chat ID do dono do dispositivo. Para receber num grupo, adicione o bot ao grupo, envie `/id`
 lá e use o ID retornado (que é negativo).
 
@@ -271,6 +280,10 @@ enquanto o Render estiver ligado.
 
 ### 5. Usar o painel
 
+<img src="docs/img/celular.png" alt="Painel aberto no celular, com os indicadores das últimas 24 horas" width="260" align="right">
+
+O painel funciona no computador e no celular.
+
 1. **Crie uma conta** e entre.
 2. **Adicione um dispositivo** pelo ID dele (ex.: `esp32-01`). As leituras só aparecem nas contas que
    cadastraram o dispositivo.
@@ -281,6 +294,8 @@ enquanto o Render estiver ligado.
 5. **Controle remoto**: liga/desliga LED e buzzer e muda o intervalo de envio.
 6. **Notificações**: cadastre o Chat ID do Telegram.
 7. **Alertas e exportação**: veja o histórico de alertas e baixe as leituras do período em CSV.
+
+<br clear="right">
 
 Comandos do bot no Telegram:
 
